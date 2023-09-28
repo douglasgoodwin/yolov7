@@ -19,7 +19,6 @@ try:
 except ImportError:
     thop = None
 
-
 class Detect(nn.Module):
     stride = None  # strides computed during build
     export = False  # onnx export
@@ -618,6 +617,7 @@ class Model(nn.Module):
 
         # Build strides, anchors
         m = self.model[-1]  # Detect()
+        
         if isinstance(m, Detect):
             s = 256  # 2x min stride
             m.stride = torch.tensor([s / x.shape[-2] for x in self.forward(torch.zeros(1, ch, s, s))])  # forward
@@ -711,6 +711,7 @@ class Model(nn.Module):
             if profile:
                 c = isinstance(m, (Detect, IDetect, IAuxDetect, IBin))
                 o = thop.profile(m, inputs=(x.copy() if c else x,), verbose=False)[0] / 1E9 * 2 if thop else 0  # FLOPS
+                    
                 for _ in range(10):
                     m(x.copy() if c else x)
                 t = time_synchronized()
@@ -719,6 +720,9 @@ class Model(nn.Module):
                 dt.append((time_synchronized() - t) * 100)
                 print('%10.1f%10.0f%10.1fms %-40s' % (o, m.np, dt[-1], m.type))
 
+            if isinstance(m, nn.Upsample):
+                m.recompute_scale_factor = False
+                
             x = m(x)  # run
             
             y.append(x if m.i in self.save else None)  # save output
